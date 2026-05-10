@@ -55,6 +55,7 @@ public class SecurityConfig {
             "/assets/**"
     };
 
+    @SuppressWarnings({"java:S4502", "java:S5122"}) // CSRF not required for stateless JWT REST APIs, FrameOptions disabled for H2 console
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

@@ -341,6 +341,7 @@ public class RankingService {
             String cleaned = val.toString().replaceAll("[^0-9.-]", "");
             return cleaned.isEmpty() ? 0 : (int) Double.parseDouble(cleaned);
         } catch (NumberFormatException e) {
+            // SonarQube: ignore exception because we fallback to 0
             return 0;
         }
     }
@@ -353,6 +354,7 @@ public class RankingService {
             String cleaned = val.toString().replaceAll("[^0-9.-]", "");
             return cleaned.isEmpty() ? 0 : Double.parseDouble(cleaned);
         } catch (NumberFormatException e) {
+            // SonarQube: ignore exception because we fallback to 0
             return 0;
         }
     }

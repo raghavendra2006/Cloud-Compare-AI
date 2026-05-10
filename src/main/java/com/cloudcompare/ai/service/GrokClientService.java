@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,6 +22,7 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import com.cloudcompare.ai.dto.AiToolResult;
+import com.cloudcompare.ai.exception.BusinessException;
 
 /**
  * 🚀 OVER-EXCELLENCE: Groq API client with Resilience4J Circuit Breakers and Retries.
@@ -66,7 +68,7 @@ public class GrokClientService {
     private String getNextApiKey() {
         List<String> keys = getApiKeys();
         if (keys.isEmpty()) return "YOUR_GROQ_API_KEYS_HERE";
-        return keys.get(Math.abs(keyIndex.getAndIncrement()) % keys.size());
+        return keys.get(Math.abs(keyIndex.getAndIncrement() % keys.size()));
     }
 
     /**
@@ -75,7 +77,7 @@ public class GrokClientService {
      */
     @Retry(name = "groqApi", fallbackMethod = "fetchComparisonFallback")
     @CircuitBreaker(name = "groqApi", fallbackMethod = "fetchComparisonFallback")
-    public List<Map<String, Object>> fetchComparisonFromGrok(String category, String serviceType) throws Exception {
+    public List<Map<String, Object>> fetchComparisonFromGrok(String category, String serviceType) throws IOException, InterruptedException {
         String apiKey = getNextApiKey();
         if ("YOUR_GROQ_API_KEYS_HERE".equals(apiKey) || apiKey.isEmpty()) {
             log.info("Using mock Groq response because API key is placeholder.");
@@ -93,13 +95,13 @@ public class GrokClientService {
      */
     @SuppressWarnings("unused")
     public List<Map<String, Object>> fetchComparisonFallback(String category, String serviceType, Throwable t) {
-        log.warn("Groq API Circuit Breaker tripped / Retries exhausted. Falling back to static cache. Reason: {}", t.getMessage());
+        log.warn("Groq API Circuit Breaker tripped / Retries exhausted. Falling back to static cache. Reason: {}", t.getMessage(), t);
         return mockDataService.getMockComparison(serviceType);
     }
 
     @Retry(name = "groqApi", fallbackMethod = "fetchAiToolsFallback")
     @CircuitBreaker(name = "groqApi", fallbackMethod = "fetchAiToolsFallback")
-    public List<AiToolResult> fetchAiToolsComparisonFromGrok(String purpose) throws Exception {
+    public List<AiToolResult> fetchAiToolsComparisonFromGrok(String purpose) throws IOException, InterruptedException {
         String apiKey = getNextApiKey();
         if ("YOUR_GROQ_API_KEYS_HERE".equals(apiKey) || apiKey.isEmpty()) {
             log.info("Using mock Groq response for AI tools because API key is placeholder.");
@@ -117,11 +119,11 @@ public class GrokClientService {
      */
     @SuppressWarnings("unused")
     public List<AiToolResult> fetchAiToolsFallback(String purpose, Throwable t) {
-        log.warn("Groq API Circuit Breaker tripped for AI Tools. Falling back. Reason: {}", t.getMessage());
+        log.warn("Groq API Circuit Breaker tripped for AI Tools. Falling back. Reason: {}", t.getMessage(), t);
         return mockDataService.getMockAiTools();
     }
 
-    private String callGroqApi(String prompt, String apiKey) throws Exception {
+    private String callGroqApi(String prompt, String apiKey) throws IOException, InterruptedException {
         String requestBody = objectMapper.writeValueAsString(Map.of(
                 "model", model,
                 "messages", List.of(Map.of("role", "user", "content", prompt)),
@@ -140,7 +142,7 @@ public class GrokClientService {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            throw new RuntimeException("Groq API " + response.statusCode() + ": " + response.body());
+            throw new BusinessException("Groq API " + response.statusCode() + ": " + response.body());
         }
 
         Map<String, Object> data = objectMapper.readValue(response.body(), new TypeReference<>() {});
